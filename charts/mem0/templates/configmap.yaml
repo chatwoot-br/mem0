@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mem0.fullname" . }}-config
+  labels:
+    {{- include "mem0.labels" . | nindent 4 }}
+data:
+  # Application environment variables
+  PYTHONUNBUFFERED: {{ .Values.config.env.PYTHONUNBUFFERED | quote }}
+  PYTHONDONTWRITEBYTECODE: {{ .Values.config.env.PYTHONDONTWRITEBYTECODE | quote }}
+  HISTORY_DB_PATH: {{ .Values.config.env.HISTORY_DB_PATH | quote }}
+
+  # PostgreSQL configuration
+  POSTGRES_HOST: {{ include "mem0.postgresql.host" . | quote }}
+  POSTGRES_PORT: {{ .Values.config.postgresql.port | quote }}
+  POSTGRES_DB: {{ .Values.config.postgresql.database | quote }}
+  POSTGRES_USER: {{ .Values.config.postgresql.username | quote }}
+  POSTGRES_COLLECTION_NAME: {{ .Values.config.postgresql.collectionName | quote }}
+
+  # Neo4j configuration
+  NEO4J_URI: {{ include "mem0.neo4j.connectionUri" . | quote }}
+  NEO4J_USERNAME: {{ .Values.config.neo4j.username | quote }}
+
+  # MemGraph configuration (optional)
+  MEMGRAPH_URI: "bolt://localhost:7687"
+  MEMGRAPH_USERNAME: "memgraph"

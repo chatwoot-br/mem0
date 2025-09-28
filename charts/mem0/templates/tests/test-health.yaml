@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "mem0.fullname" . }}-test-health"
+  labels:
+    {{- include "mem0.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": "before-hook-creation,hook-succeeded"
+spec:
+  restartPolicy: Never
+  containers:
+  - name: health-test
+    image: curlimages/curl:8.5.0
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Testing health endpoint..."
+
+        # Test health endpoint
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://{{ include "mem0.fullname" . }}:{{ .Values.service.port }}/health)
+
+        if [ "$response" -eq 200 ]; then
+          echo "✅ Health check passed (HTTP $response)"
+        else
+          echo "❌ Health check failed (HTTP $response)"
+          exit 1
+        fi
+
+        # Test API documentation endpoint
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://{{ include "mem0.fullname" . }}:{{ .Values.service.port }}/docs)
+
+        if [ "$response" -eq 200 ]; then
+          echo "✅ API docs endpoint accessible (HTTP $response)"
+        else
+          echo "❌ API docs endpoint failed (HTTP $response)"
+          exit 1
+        fi
+
+        echo "🎉 All tests passed!"
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi

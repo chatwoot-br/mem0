@@ -1,0 +1,30 @@
+apiVersion: v2
+name: mem0
+description: Mem0 FastAPI REST API server with PostgreSQL and Neo4j support
+type: application
+version: 0.1.118
+appVersion: "0.1.118"
+home: https://github.com/chatwoot-br/mem0
+sources:
+  - https://github.com/chatwoot-br/mem0
+maintainers:
+  - name: ChatWoot (BR) Team
+    email: antonio@chatwoot.app.br
+keywords:
+  - memory
+  - ai
+  - fastapi
+  - vector-database
+  - graph-database
+dependencies:
+  - name: postgresql
+    version: "16.7.27"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: neo4j
+    version: "5.28.0"
+    repository: "https://helm.neo4j.com/neo4j"
+    condition: neo4j.enabled
+annotations:
+  category: AI/ML
+  licenses: Apache-2.0

@@ -1,0 +1,226 @@
+# Default values for mem0.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  registry: ghcr.io
+  repository: chatwoot-br/mem0-api-server
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: mem0.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mem0-tls
+      hosts:
+        - mem0.local
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: "50%"
+
+# Network policies
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+
+# Service monitor for Prometheus
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+
+# Application configuration
+config:
+  # Environment variables for the application
+  env:
+    PYTHONUNBUFFERED: "1"
+    PYTHONDONTWRITEBYTECODE: "1"
+    HISTORY_DB_PATH: "/app/history/history.db"
+
+  # PostgreSQL configuration
+  postgresql:
+    host: postgresql
+    port: 5432
+    database: mem0
+    username: mem0
+    collectionName: memories
+
+  # Neo4j configuration
+  neo4j:
+    uri: bolt://neo4j:7687
+    username: neo4j
+
+# Secrets configuration
+secrets:
+  # Option 1: Provide secrets directly (not recommended for production)
+  # OpenAI API key for LLM operations
+  openaiApiKey: ""
+  # PostgreSQL password
+  postgresqlPassword: ""
+  # Neo4j password
+  neo4jPassword: ""
+
+  # Option 2: Reference existing secrets (recommended for production)
+  # Set existingSecret to use an existing Kubernetes secret
+  existingSecret: ""
+
+  # Custom key names in the existing secret (optional, defaults shown)
+  existingSecretKeys:
+    openaiApiKey: "OPENAI_API_KEY"
+    postgresqlPassword: "POSTGRES_PASSWORD"
+    neo4jPassword: "NEO4J_PASSWORD"
+
+# Persistence for history database
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 1Gi
+  annotations: {}
+
+# Init containers configuration
+initContainers:
+  # Wait for PostgreSQL to be ready
+  waitForPostgresql:
+    enabled: true
+    image:
+      repository: postgres
+      tag: "15"
+      pullPolicy: IfNotPresent
+
+  # Wait for Neo4j to be ready
+  waitForNeo4j:
+    enabled: true
+    image:
+      repository: neo4j
+      tag: "5.0"
+      pullPolicy: IfNotPresent
+
+# Health check configuration
+healthCheck:
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# PostgreSQL subchart configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: postgres
+    username: mem0
+    password: mem0
+    database: mem0
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 250m
+  # Enable pgvector extension
+  initdb:
+    scripts:
+      init_pgvector.sql: |
+        CREATE EXTENSION IF NOT EXISTS vector;
+
+# Neo4j subchart configuration
+neo4j:
+  enabled: true
+  neo4j:
+    password: mem0graph
+    edition: community
+  volumes:
+    data:
+      mode: "defaultStorageClass"
+      defaultStorageClass:
+        requests:
+          storage: 10Gi
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m

@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mem0.fullname" . }}
+  labels:
+    {{- include "mem0.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "mem0.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "mem0.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "mem0.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if or .Values.initContainers.waitForPostgresql.enabled .Values.initContainers.waitForNeo4j.enabled }}
+      initContainers:
+        {{- if .Values.initContainers.waitForPostgresql.enabled }}
+        - name: wait-for-postgresql
+          image: {{ .Values.initContainers.waitForPostgresql.image.repository }}:{{ .Values.initContainers.waitForPostgresql.image.tag }}
+          imagePullPolicy: {{ .Values.initContainers.waitForPostgresql.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h {{ include "mem0.postgresql.host" . }} -p {{ .Values.config.postgresql.port }} -U {{ .Values.config.postgresql.username }}; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mem0.postgresql.secretName" . }}
+                  key: {{ include "mem0.postgresql.passwordKey" . }}
+        {{- end }}
+        {{- if .Values.initContainers.waitForNeo4j.enabled }}
+        - name: wait-for-neo4j
+          image: {{ .Values.initContainers.waitForNeo4j.image.repository }}:{{ .Values.initContainers.waitForNeo4j.image.tag }}
+          imagePullPolicy: {{ .Values.initContainers.waitForNeo4j.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              until cypher-shell -a {{ include "mem0.neo4j.connectionUri" . }} -u {{ .Values.config.neo4j.username }} -p "$NEO4J_PASSWORD" "RETURN 1" > /dev/null 2>&1; do
+                echo "Waiting for Neo4j..."
+                sleep 2
+              done
+              echo "Neo4j is ready!"
+          env:
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "mem0.neo4j.secretName" . }}
+                  key: {{ include "mem0.neo4j.passwordKey" . }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "mem0.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "mem0.fullname" . }}-config
+            - secretRef:
+                name: {{ include "mem0.secretName" . }}
+          {{- with .Values.healthCheck.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.healthCheck.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: history-storage
+              mountPath: /app/history
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: history-storage
+          persistentVolumeClaim:
+            claimName: {{ include "mem0.fullname" . }}-history-pvc
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,97 @@
+# Development environment values for Mem0
+# This file contains configurations suitable for development environments
+
+replicaCount: 1
+
+image:
+  tag: "latest"
+  pullPolicy: Always
+
+# Disable autoscaling in development
+autoscaling:
+  enabled: false
+
+# Minimal resources for development
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# Enable ingress for development
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+  hosts:
+    - host: mem0-dev.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Disable security features for easier development
+networkPolicy:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+# Enable persistence with minimal storage
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""
+
+# PostgreSQL configuration for development
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: postgres
+    username: mem0
+    password: mem0
+    database: mem0
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        memory: 128Mi
+        cpu: 100m
+      limits:
+        memory: 256Mi
+        cpu: 200m
+
+# Neo4j configuration for development
+neo4j:
+  enabled: true
+  neo4j:
+    password: mem0graph
+    edition: community
+  volumes:
+    data:
+      mode: "defaultStorageClass"
+      defaultStorageClass:
+        requests:
+          storage: 2Gi
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 200m
+
+# Development secrets (use proper secret management in production)
+secrets:
+  openaiApiKey: "" # Set via environment or secret management
+  postgresqlPassword: "mem0"
+  neo4jPassword: "mem0graph"

@@ -1,0 +1,129 @@
+# Staging environment values for Mem0
+# This file contains configurations suitable for staging environments
+
+replicaCount: 2
+
+image:
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Enable autoscaling with moderate limits
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Moderate resources for staging
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Enable ingress with TLS
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: mem0-staging.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: mem0-staging-tls
+      hosts:
+        - mem0-staging.example.com
+
+# Enable basic security features
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: "50%"
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /health
+
+# Enable persistence with moderate storage
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: "fast-ssd"
+
+# PostgreSQL configuration for staging
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "" # Use secret management
+    username: mem0
+    password: "" # Use secret management
+    database: mem0
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: "fast-ssd"
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 1Gi
+        cpu: 500m
+
+# Neo4j configuration for staging
+neo4j:
+  enabled: true
+  neo4j:
+    password: "" # Use secret management
+    edition: community
+  volumes:
+    data:
+      mode: "defaultStorageClass"
+      defaultStorageClass:
+        requests:
+          storage: 10Gi
+        storageClassName: "fast-ssd"
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# Staging secrets (use proper secret management)
+secrets:
+  openaiApiKey: "" # Set via external secret management
+  postgresqlPassword: "" # Set via external secret management
+  neo4jPassword: "" # Set via external secret management
+
+# Pod security and affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+            - mem0
+        topologyKey: kubernetes.io/hostname
