@@ -1,0 +1,133 @@
+name: Build and Release Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "server/**"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-api-server
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      attestations: write
+      id-token: write
+
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # set latest tag for default branch
+            type=ref,event=branch
+            type=ref,event=pr
+            # set semver tags for releases
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            # set latest tag for main branch
+            type=raw,value=latest,enable={{is_default_branch}}
+            # set edge tag for main branch
+            type=edge,branch=main
+            # add sha tag for traceability
+            type=sha,prefix={{branch}}-
+          labels: |
+            org.opencontainers.image.title=Mem0 REST API Server
+            org.opencontainers.image.description=FastAPI-based REST API server for Mem0
+            org.opencontainers.image.vendor=Mem0
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH,MEDIUM"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0.17.2
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.spdx.json
+
+  notify:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify on success
+        if: needs.build-and-push.result == 'success'
+        run: |
+          echo "✅ Docker image built successfully!"
+          echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "🏷️ Tags: ${{ needs.build-and-push.outputs.image-tags }}"
+          echo "🔒 Digest: ${{ needs.build-and-push.outputs.image-digest }}"
+
+      - name: Notify on failure
+        if: needs.build-and-push.result == 'failure'
+        run: |
+          echo "❌ Docker build failed!"
+          echo "Build result: ${{ needs.build-and-push.result }}"
+          exit 1

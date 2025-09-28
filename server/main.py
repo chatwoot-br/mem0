@@ -219,6 +219,12 @@ def reset_memory():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/health", summary="Health check endpoint")
+def health_check():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "mem0-server"}
+
+
 @app.get("/", summary="Redirect to the OpenAPI documentation", include_in_schema=False)
 def home():
     """Redirect to the OpenAPI documentation."""
