@@ -22,7 +22,7 @@ dependencies:
     repository: "https://charts.bitnami.com/bitnami"
     condition: postgresql.enabled
   - name: neo4j
-    version: "5.28.0"
+    version: "2025.8.0"
     repository: "https://helm.neo4j.com/neo4j"
     condition: neo4j.enabled
 annotations:

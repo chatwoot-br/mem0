@@ -9,6 +9,7 @@ data:
   PYTHONUNBUFFERED: {{ .Values.config.env.PYTHONUNBUFFERED | quote }}
   PYTHONDONTWRITEBYTECODE: {{ .Values.config.env.PYTHONDONTWRITEBYTECODE | quote }}
   HISTORY_DB_PATH: {{ .Values.config.env.HISTORY_DB_PATH | quote }}
+  MEM0_DIR: {{ .Values.config.env.MEM0_DIR | quote }}
 
   # PostgreSQL configuration
   POSTGRES_HOST: {{ include "mem0.postgresql.host" . | quote }}

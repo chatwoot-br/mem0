@@ -61,11 +61,11 @@ ingress:
 
 resources:
   limits:
-    cpu: 2000m
+    cpu: 1000m
     memory: 2Gi
   requests:
     cpu: 500m
-    memory: 512Mi
+    memory: 1Gi
 
 autoscaling:
   enabled: false
@@ -105,7 +105,8 @@ config:
   env:
     PYTHONUNBUFFERED: "1"
     PYTHONDONTWRITEBYTECODE: "1"
-    HISTORY_DB_PATH: "/app/history/history.db"
+    HISTORY_DB_PATH: "/app/data/history/history.db"
+    MEM0_DIR: "/app/data/mem0"
 
   # PostgreSQL configuration
   postgresql:
@@ -140,12 +141,12 @@ secrets:
     postgresqlPassword: "POSTGRES_PASSWORD"
     neo4jPassword: "NEO4J_PASSWORD"
 
-# Persistence for history database
+# Persistence configuration
 persistence:
   enabled: true
   storageClass: ""
   accessMode: ReadWriteOnce
-  size: 1Gi
+  size: 2Gi
   annotations: {}
 
 # Init containers configuration
@@ -163,7 +164,7 @@ initContainers:
     enabled: true
     image:
       repository: neo4j
-      tag: "5.0"
+      tag: "2025.08.0"
       pullPolicy: IfNotPresent
 
 # Health check configuration
@@ -188,7 +189,7 @@ healthCheck:
 
 # PostgreSQL subchart configuration
 postgresql:
-  enabled: true
+  enabled: false
   auth:
     postgresPassword: postgres
     username: mem0
@@ -210,7 +211,7 @@ postgresql:
 
 # Neo4j subchart configuration
 neo4j:
-  enabled: true
+  enabled: false
   neo4j:
     password: mem0graph
     edition: community
